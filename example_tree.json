@@ -1,0 +1,56 @@
+{
+  "name": "Photos by Country",
+  "tree": {
+    "type": "folder",
+    "name": "ROOT",
+    "children": [
+      {
+        "type": "folder",
+        "name": "Norway",
+        "children": [
+          {
+            "type": "file",
+            "name": "pic_01.jpg",
+            "properties": {
+              "file.path": "/data/DSC02011.jpg"
+            }
+          },
+          {
+            "type": "file",
+            "name": "pic_02.jpg",
+            "properties": {
+              "file.path": "/data/DSC02012.jpg"
+            }
+          },
+          {
+            "type": "file",
+            "name": "pic_03.jpg",
+            "properties": {
+              "file.path": "/data/DSC02013.jpg"
+            }
+          }
+        ]
+      },
+      {
+        "type": "folder",
+        "name": "Italy",
+        "children": [
+          {
+            "type": "file",
+            "name": "pic_01.jpg",
+            "properties": {
+              "file.path": "/data/DSC03022.jpg"
+            }
+          },
+          {
+            "type": "file",
+            "name": "pic_02.jpg",
+            "properties": {
+              "file.path": "/data/DSC03023.jpg"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
