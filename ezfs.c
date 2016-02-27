@@ -71,7 +71,7 @@ static int ezfs_load_tree_from_json(ezfs_tree_t tree, json_object *json) {
 static ezfs_tree_t ezfs_find_tree_by_name(ezfs_context_t ctx, const char* name, int name_len) {
     for (int i = 0; i < MAX_TREES; ++i) {
         ezfs_tree_t tree = &(ctx->trees[i]);
-        if (strncmp(tree->name, name, name_len) == 0) {
+        if (tree->name && strlen(tree->name) == name_len && strncmp(tree->name, name, name_len) == 0) {
             return tree;
         }
     }
@@ -96,7 +96,8 @@ static json_object* ezfs_find_child_for_name(json_object* children, const char* 
             return NULL;
         }
 
-        if (strncmp(json_object_get_string(name_obj), name, name_len) == 0) {
+        const char* name_str = json_object_get_string(name_obj);
+        if (strlen(name_str) == name_len && strncmp(name_str, name, name_len) == 0) {
             return child;
         }
     }
@@ -119,12 +120,13 @@ static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t*
         return 0;
     }
 
-    *tree = ezfs_find_tree_by_name(ctx, path + 1, next_slash - path - 1);
+    const char* tree_name = path + 1;
+    size_t name_len = next_slash ? (next_slash - tree_name) : (path_len - 1);
+    printf("=== (%d) %s\n", name_len, tree_name);
+    *tree = ezfs_find_tree_by_name(ctx, tree_name, name_len);
     if (!*tree) {
         return -1;
     }
-
-    printf(">>> found tree %s\n", (*tree)->name);
 
     // either no further slash or found slash is at end
     if (!next_slash || (next_slash + 1 == path + path_len)) {
@@ -173,6 +175,14 @@ static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t*
 }
 
 int ezfs_resolve(ezfs_context_t ctx, const char *path, char *resolved, size_t len, int *file_type) {
+    if (strcmp(path, "/") == 0) {
+        *file_type = S_IFDIR;
+        strncpy(resolved, "/", len);
+        return 0;
+    }
+
+    printf(">>> ezfs_resolve(%s)\n", path);
+
     ezfs_tree_t tree;
     json_object *node;
     int rc = ezfs_node_for_path(ctx, path, &tree, &node);
@@ -180,11 +190,9 @@ int ezfs_resolve(ezfs_context_t ctx, const char *path, char *resolved, size_t le
         return -ENOENT;
     }
 
-    // root level
+    // no tree for given path
     if (!tree) {
-        *file_type = S_IFDIR;
-        strncpy(resolved, "/", len);
-        return 0;
+        return -ENOENT;
     }
 
     // top-level with tree names, also mapped to /
@@ -337,6 +345,15 @@ static int ezfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
+    if (strcmp(path, "/") == 0) {
+        for (int i = 0; i < MAX_TREES; ++i) {
+            if (ctx->trees[i].name) {
+                filler(buf, ctx->trees[i].name, NULL, 0);
+            }
+        }
+        return 0;
+    }
+
     ezfs_tree_t tree;
     json_object *node;
     int rc = ezfs_node_for_path(ctx, path, &tree, &node);
@@ -346,12 +363,8 @@ static int ezfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
     }
 
     if (!tree) {
-        for (int i = 0; i < MAX_TREES; ++i) {
-            if (ctx->trees[i].name) {
-                filler(buf, ctx->trees[i].name, NULL, 0);
-            }
-        }
-        return 0;
+        fprintf(stderr, "No tree found for %s?!?\n", path);
+        return -ENOENT;
     }
 
     if (!node) {
