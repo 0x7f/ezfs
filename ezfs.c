@@ -68,35 +68,37 @@ static int ezfs_load_tree_from_json(ezfs_tree_t tree, json_object *json) {
     return 0;
 }
 
-static ezfs_tree_t ezfs_find_tree_by_name(ezfs_context_t ctx, const char* name, int name_len) {
+static ezfs_tree_t ezfs_find_tree_by_name(ezfs_context_t ctx, const char *name, int name_len) {
     for (int i = 0; i < MAX_TREES; ++i) {
         ezfs_tree_t tree = &(ctx->trees[i]);
-        if (tree->name && strlen(tree->name) == name_len && strncmp(tree->name, name, name_len) == 0) {
+        if (tree->name && strlen(tree->name) == name_len &&
+            strncmp(tree->name, name, name_len) == 0) {
             return tree;
         }
     }
     return NULL;
 }
 
-static json_object* ezfs_find_child_for_name(json_object* children, const char* name, size_t name_len) {
-    assert (json_object_is_type(children, json_type_array));
+static json_object *ezfs_find_child_for_name(json_object *children, const char *name,
+                                             size_t name_len) {
+    assert(json_object_is_type(children, json_type_array));
 
     int num_children = json_object_array_length(children);
     for (int i = 0; i < num_children; ++i) {
-        json_object* child = json_object_array_get_idx (children, i);
+        json_object *child = json_object_array_get_idx(children, i);
         if (!child || !json_object_is_type(child, json_type_object)) {
             fprintf(stderr, "Child is not an object.\n");
             return NULL;
         }
 
-        json_object* name_obj;
+        json_object *name_obj;
         json_bool r = json_object_object_get_ex(child, "name", &name_obj);
         if (!r || !json_object_is_type(name_obj, json_type_string)) {
             fprintf(stderr, "Child has no name.\n");
             return NULL;
         }
 
-        const char* name_str = json_object_get_string(name_obj);
+        const char *name_str = json_object_get_string(name_obj);
         if (strlen(name_str) == name_len && strncmp(name_str, name, name_len) == 0) {
             return child;
         }
@@ -106,7 +108,8 @@ static json_object* ezfs_find_child_for_name(json_object* children, const char* 
 }
 
 // return value is depth. 0 for root, 1 for tree root. negative for error or not found.
-static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t* tree, json_object** node) {
+static int ezfs_node_for_path(ezfs_context_t ctx, const char *path, ezfs_tree_t *tree,
+                              json_object **node) {
     size_t path_len = strlen(path);
     assert(path_len && path[0] == '/');
 
@@ -115,12 +118,12 @@ static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t*
     *tree = NULL;
     *node = NULL;
 
-    const char* next_slash = strchr(path + 1, '/');
+    const char *next_slash = strchr(path + 1, '/');
     if (!next_slash && path_len <= 1) { // path is "/"
         return 0;
     }
 
-    const char* tree_name = path + 1;
+    const char *tree_name = path + 1;
     size_t name_len = next_slash ? (next_slash - tree_name) : (path_len - 1);
     printf("=== (%d) %s\n", name_len, tree_name);
     *tree = ezfs_find_tree_by_name(ctx, tree_name, name_len);
@@ -135,10 +138,10 @@ static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t*
     }
 
     int level = 2;
-    json_object* curr_node = (*tree)->root;
+    json_object *curr_node = (*tree)->root;
     while (next_slash && *next_slash) {
-        const char* begin = next_slash + 1;
-        const char* end = strchr(begin, '/');
+        const char *begin = next_slash + 1;
+        const char *end = strchr(begin, '/');
         if (!end) { // leaf node in path
             end = &path[path_len];
         }
@@ -147,14 +150,14 @@ static int ezfs_node_for_path(ezfs_context_t ctx, const char* path, ezfs_tree_t*
 
         json_bool r;
 
-        json_object* children;
+        json_object *children;
         r = json_object_object_get_ex(curr_node, "children", &children);
         if (!r || !json_object_is_type(children, json_type_array)) {
             fprintf(stderr, "Node has no children.\n");
             return -1;
         }
 
-        json_object* child = ezfs_find_child_for_name(children, begin, len);
+        json_object *child = ezfs_find_child_for_name(children, begin, len);
         if (!child) {
             fprintf(stderr, "Child not found for name %s(%zu).\n", begin, len);
             return -1;
@@ -224,14 +227,14 @@ int ezfs_resolve(ezfs_context_t ctx, const char *path, char *resolved, size_t le
         return -ENOENT;
     }
 
-    json_object* properties;
+    json_object *properties;
     r = json_object_object_get_ex(node, "properties", &properties);
     if (!r || !json_object_is_type(properties, json_type_object)) {
         fprintf(stderr, "Node for path %s has no properties object.\n", path);
         return -ENOENT;
     }
 
-    json_object* file_path;
+    json_object *file_path;
     r = json_object_object_get_ex(properties, "file.path", &file_path);
     if (!r || !json_object_is_type(file_path, json_type_string)) {
         fprintf(stderr, "Node for path %s has no file.path property.\n", path);
@@ -312,7 +315,8 @@ static int ezfs_fuse_getattr(const char *path, struct stat *stbuf) {
 
     if (type & S_IFREG) {
         if (stat(resolved_path, stbuf) != 0) {
-            fprintf(stderr, "unable to call stat for resolved path %s for %s\n", resolved_path, path);
+            fprintf(stderr, "unable to call stat for resolved path %s for %s\n", resolved_path,
+                    path);
             return -ENOENT;
         }
         assert(stbuf->st_mode & S_IFREG);
@@ -374,7 +378,7 @@ static int ezfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 
     json_bool r;
 
-    json_object* children;
+    json_object *children;
     r = json_object_object_get_ex(node, "children", &children);
     if (!r || !json_object_is_type(children, json_type_array)) {
         fprintf(stderr, "Node has no children.\n");
@@ -383,13 +387,13 @@ static int ezfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 
     int num_children = json_object_array_length(children);
     for (int i = 0; i < num_children; ++i) {
-        json_object* child = json_object_array_get_idx (children, i);
+        json_object *child = json_object_array_get_idx(children, i);
         if (!child || !json_object_is_type(child, json_type_object)) {
             fprintf(stderr, "Child is not an object.\n");
             continue;
         }
 
-        json_object* name_obj;
+        json_object *name_obj;
         json_bool r = json_object_object_get_ex(child, "name", &name_obj);
         if (!r || !json_object_is_type(name_obj, json_type_string)) {
             fprintf(stderr, "Child has no name.\n");
